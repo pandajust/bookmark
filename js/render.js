@@ -444,7 +444,7 @@ const Renderer = (function () {
         j++;
       }
 
-      if (groupImgCount >= 1) {
+      if (groupImgCount >= 2) {
         // 用 IIFE 隔离作用域，防止后续 gallery 覆盖 groupImgs 引用
         (function (groupPs, groupImgCount) {
           // 收集这些段中的全部 img（保持文档顺序）

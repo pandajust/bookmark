@@ -103,13 +103,6 @@
 .stag:hover { background: var(--glass-light); }
 .stag .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 8px currentColor; }
 
-/* 黑白主题：标签圆点去色 */
-:root[data-theme="white"] .stag .dot,
-:root[data-theme="black"] .stag .dot {
-  filter: grayscale(1);
-  box-shadow: none;
-}
-
 /* Main — main-header 固定在上，cards 内部滚动 */
 .main { flex: 1; min-width: 0; min-height: 0; padding: var(--space-20) var(--space-24); display: flex; flex-direction: column; gap: var(--space-16); }
 .main-header { flex: none; display: flex; align-items: center; gap: var(--space-12); }

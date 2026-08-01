@@ -272,6 +272,7 @@ class ContentExtractor(HTMLParser):
         self.og_description = ''
         self._in_title = False
         self._in_head = False
+        self._in_pre = False
         self._capturing_meta = None
 
     def handle_starttag(self, tag, attrs):
@@ -305,6 +306,9 @@ class ContentExtractor(HTMLParser):
             self.stack.append(node)
             return
 
+        if tag == 'pre':
+            self._in_pre = True
+
         node = {'tag': tag, 'attrs': attrs_d, 'children': [], 'text': '', 'parent': self.stack[-1]}
         self.stack[-1]['children'].append(node)
         self.stack.append(node)
@@ -316,6 +320,8 @@ class ContentExtractor(HTMLParser):
         if tag == 'title' and self._in_title:
             self._in_title = False
             return
+        if tag == 'pre':
+            self._in_pre = False
         # 找到栈上最近的同标签节点并弹出
         for i in range(len(self.stack) - 1, 0, -1):
             if self.stack[i]['tag'] == tag:
@@ -330,9 +336,9 @@ class ContentExtractor(HTMLParser):
         if node.get('text') is None:
             return
         # 跳过纯空白文本节点（HTML 格式化缩进/换行产物）
-        # 但保留含有实际内容的文本（包括其周围的空格，用于内联元素间距）
+        # 但在 <pre> 中保留所有空白（代码缩进/换行是语义的一部分）
         stripped = data.strip()
-        if not stripped:
+        if not stripped and not self._in_pre:
             return
         node['children'].append({
             'tag': '#text', 'attrs': {}, 'children': [],
@@ -375,7 +381,11 @@ class ContentExtractor(HTMLParser):
         return paras, headings, links
 
     def find_best_container(self):
-        """遍历所有候选容器，返回评分最高的子树根节点。"""
+        """遍历所有候选容器，返回评分最高的子树根节点。
+
+        改进：如果最佳容器的兄弟节点也包含大量文本（>30%），
+        则回溯到父级容器，避免多 section 文章丢失内容。
+        """
         candidates = []
 
         def walk(node):
@@ -398,15 +408,31 @@ class ContentExtractor(HTMLParser):
                 continue
             paras, headings, links = self._count_blocks(c)
             link_density = links / (paras + 1)
-            # 评分公式
             score = (text_len + paras * 30 + headings * 40) / (1 + link_density * 5)
-            # article/main 加权
             if c['tag'] in ('article', 'main'):
                 score *= 1.5
             if score > best_score:
                 best_score = score
                 best = c
-        return best or self.root
+
+        if not best:
+            # 所有候选都 < 200 字，选文本最多的
+            best = max(candidates, key=lambda c: self._container_text_len(c))
+            return best
+
+        # 检查兄弟节点是否也有大量文本：如果兄弟文本量 > 最佳容器的 30%，
+        # 说明内容分散在多个容器中，回溯到父级以包含全部内容
+        parent = best.get('parent')
+        if parent and parent != self.root:
+            best_text = self._container_text_len(best)
+            sibling_text = 0
+            for child in parent.get('children', []):
+                if child is not best and child.get('text') is not None:
+                    sibling_text += self._container_text_len(child)
+            if best_text > 0 and sibling_text > best_text * 0.3:
+                return parent
+
+        return best
 
 
 # ===== HTML → Markdown 转换 =====
@@ -421,6 +447,17 @@ class MarkdownConverter(HTMLParser):
 
     INLINE_TAGS = {'a', 'strong', 'b', 'em', 'i', 'code', 'img', 'br'}
 
+    # 图片懒加载属性名（按优先级排序）
+    IMG_LAZY_ATTRS = ['data-src', 'data-original', 'data-lazy-src', 'data-actualsrc',
+                      'data-lazy', 'data-url', 'data-srcset']
+    # 无效图片 src 模式（1x1 占位图、data URI 占位等）
+    IMG_INVALID_PATTERNS = re.compile(
+        r'^(?:data:image/(?:gif|svg)\+xml|about:blank|\s*$)'
+        r'|1x1|pixel|placeholder|blank\.gif|loading\.gif|lazy',
+        re.I,
+    )
+    MAX_IMAGES = 10
+
     def __init__(self, base_url=''):
         super().__init__(convert_charrefs=True)
         self.base_url = base_url
@@ -428,12 +465,22 @@ class MarkdownConverter(HTMLParser):
         self.current_line = ''
         self.list_stack = []          # 每项 ('ul' | 'ol', counter)
         self.in_pre = False
+        self.pre_buffer = ''
         self.in_blockquote = False
         self.in_table = False
         self.table_rows = []
+        self.current_row = []
+        self.current_cell = ''
+        self.in_cell = False
+        self.image_count = 0
 
     def _emit(self, text):
-        self.current_line += text
+        if self.in_cell:
+            self.current_cell += text
+        elif self.in_pre:
+            self.pre_buffer += text
+        else:
+            self.current_line += text
 
     def _end_line(self):
         if self.list_stack:
@@ -477,16 +524,26 @@ class MarkdownConverter(HTMLParser):
             self._pending_href = href
             self._emit('[')
         elif tag == 'img':
-            src = attrs_d.get('src', '')
-            alt = attrs_d.get('alt', '')
+            src = self._extract_img_src(attrs_d)
+            alt = attrs_d.get('alt', '') or attrs_d.get('title', '')
             if src and self.base_url:
                 try:
                     src = urllib.parse.urljoin(self.base_url, src)
                 except Exception:
                     pass
-            self._emit('![{}]({})'.format(alt, src))
+            if src and not self.IMG_INVALID_PATTERNS.search(src):
+                if self.image_count < self.MAX_IMAGES:
+                    self.image_count += 1
+                    # 图片独占一行，确保不被段落合并吞掉
+                    if self.current_line.strip():
+                        self._end_line()
+                    self._emit('![{}]({})'.format(alt, src))
+                    self._end_line()
         elif tag == 'br':
-            self._end_line()
+            if self.in_cell:
+                self.current_cell += ' '
+            else:
+                self._end_line()
         elif tag == 'hr':
             if self.current_line.strip():
                 self._end_line()
@@ -510,17 +567,30 @@ class MarkdownConverter(HTMLParser):
             if self.current_line.strip():
                 self._end_line()
             self.in_pre = True
+            self.pre_buffer = ''
             lang = ''
             cls = attrs_d.get('class', '')
             m = re.search(r'language-([\w\-]+)', cls)
             if m:
                 lang = m.group(1)
             self.lines.append('```' + lang)
+        elif tag in ('div', 'section', 'article', 'main', 'figure', 'thead', 'tbody', 'tfoot'):
+            if not self.in_cell and self.current_line.strip():
+                self._end_line()
+        elif tag == 'figcaption':
+            if not self.in_cell and self.current_line.strip():
+                self._end_line()
+            self._emit('*')
         elif tag == 'table':
             if self.current_line.strip():
                 self._end_line()
             self.in_table = True
             self.table_rows = []
+        elif tag == 'tr':
+            self.current_row = []
+        elif tag in ('td', 'th'):
+            self.current_cell = ''
+            self.in_cell = True
 
     def handle_endtag(self, tag):
         if tag in ('script', 'style', 'noscript', 'iframe', 'svg'):
@@ -555,22 +625,64 @@ class MarkdownConverter(HTMLParser):
             if not self.list_stack:
                 self.lines.append('')
         elif tag == 'pre':
-            if self.current_line.strip():
-                self._end_line()
+            if self.pre_buffer:
+                self.lines.append(self.pre_buffer.rstrip('\n'))
             self.lines.append('```')
             self.in_pre = False
+            self.pre_buffer = ''
             self.lines.append('')
         elif tag == 'table':
             self._render_table()
             self.in_table = False
+        elif tag in ('td', 'th'):
+            self.current_row.append(self.current_cell.strip())
+            self.in_cell = False
+        elif tag == 'tr':
+            if self.current_row:
+                self.table_rows.append(self.current_row)
+        elif tag == 'figcaption':
+            self._emit('*')
+            if not self.in_cell:
+                self._end_line()
+        elif tag in ('div', 'section', 'article', 'main', 'figure', 'thead', 'tbody', 'tfoot'):
+            if not self.in_cell and self.current_line.strip():
+                self._end_line()
 
     def handle_data(self, data):
         if self.in_pre:
-            self.lines.append(data)
+            self.pre_buffer += data
         else:
             # 折叠多余空白
             text = re.sub(r'\s+', ' ', data)
             self._emit(text)
+
+    def _extract_img_src(self, attrs_d):
+        """从 img 标签属性中提取真实图片 URL。
+
+        优先级：data-src 等懒加载属性 > src > srcset（取第一项）。
+        过滤掉 1x1 占位图、data URI 占位图等无效值。
+        """
+        # 1. 检查懒加载属性（按优先级）
+        for attr in self.IMG_LAZY_ATTRS:
+            val = attrs_d.get(attr, '')
+            if val and not self.IMG_INVALID_PATTERNS.search(val):
+                # data-srcset 格式: "url1 1x, url2 2x"
+                if attr == 'data-srcset' and ' ' in val:
+                    val = val.split(',')[0].strip().split(' ')[0]
+                return val
+
+        # 2. 检查 srcset 属性
+        srcset = attrs_d.get('srcset', '')
+        if srcset and not self.IMG_INVALID_PATTERNS.search(srcset):
+            first = srcset.split(',')[0].strip().split(' ')[0]
+            if first and not self.IMG_INVALID_PATTERNS.search(first):
+                return first
+
+        # 3. 回退到 src
+        src = attrs_d.get('src', '')
+        if src and self.IMG_INVALID_PATTERNS.search(src):
+            return ''
+        return src
 
     def _render_table(self):
         if not self.table_rows:
@@ -649,6 +761,22 @@ def extract_content(html, base_url=''):
     # 整理：在开头加 H1 标题（如果没有）
     if title and not md.lstrip().startswith('# '):
         md = '# {}\n\n{}'.format(title, md)
+
+    # 将图片 URL 替换为后端代理 URL，避免浏览器跨域 ORB 拦截
+    if base_url:
+        def proxy_img_url(m):
+            original = m.group(2)
+            if not original or original.startswith('data:'):
+                return m.group(0)
+            # 确保是绝对 URL
+            try:
+                abs_url = urllib.parse.urljoin(base_url, original)
+            except Exception:
+                return m.group(0)
+            encoded = urllib.parse.quote(abs_url, safe='')
+            return '![{}]({})'.format(m.group(1), '/api/img?url=' + encoded)
+
+        md = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', proxy_img_url, md)
 
     # 截断保护
     if len(md) > 80000:
@@ -1037,6 +1165,9 @@ class BookmarkHandler(BaseHTTPRequestHandler):
             if path == '/api/stats':
                 return self._send_json(200, {'counts': category_counts(conn)})
 
+            if path == '/api/img':
+                return self._serve_image_proxy(query)
+
             return self._send_json(404, {'error': 'Unknown endpoint'})
         finally:
             conn.close()
@@ -1155,6 +1286,41 @@ class BookmarkHandler(BaseHTTPRequestHandler):
             '.woff': 'font/woff', '.woff2': 'font/woff2',
             '.md': 'text/markdown',
         }.get(ext, 'application/octet-stream')
+
+    def _serve_image_proxy(self, query):
+        """代理外部图片，避免浏览器跨域 ORB 拦截。"""
+        qs = urllib.parse.parse_qs(query)
+        url = (qs.get('url') or [''])[0]
+        if not url:
+            return self.send_error(400, 'Missing url parameter')
+
+        canonical, host = canonicalize_url(url)
+        if not canonical or not host:
+            return self.send_error(400, 'Invalid url')
+        if not resolve_and_validate_host(host):
+            return self.send_error(403, 'Blocked host')
+
+        try:
+            opener = urllib.request.build_opener(SafeRedirectHandler)
+            req = urllib.request.Request(canonical, headers={
+                'User-Agent': FETCH_USER_AGENT,
+                'Accept': 'image/*,*/*;q=0.8',
+            }, method='GET')
+            resp = opener.open(req, timeout=FETCH_TIMEOUT)
+
+            ctype = resp.headers.get('Content-Type', 'image/jpeg').split(';')[0].strip()
+            if not ctype.startswith('image/'):
+                ctype = 'image/jpeg'
+
+            data = resp.read(FETCH_MAX_BYTES)
+            self.send_response(200)
+            self.send_header('Content-Type', ctype)
+            self.send_header('Content-Length', str(len(data)))
+            self.send_header('Cache-Control', 'public, max-age=86400')
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception:
+            self.send_error(502, 'Image fetch failed')
 
 
 # ===== 启动 =====

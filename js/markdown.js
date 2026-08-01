@@ -28,14 +28,13 @@ const MarkdownRenderer = (function () {
       return '<code>' + escapeHtml(code) + '</code>';
     });
 
-    // 图片 ![alt](url)
-    // 不使用 loading="lazy"，避免阅读视图内图片被延迟加载导致用户认为"不显示"
+    // 图片 ![alt](url) — 内联处理作为兼容（后端通常输出独占一行的图片）
     result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function (m, alt, url) {
       return '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(alt) + '">';
     });
 
-    // 链接 [text](url)
-    result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (m, text, url) {
+    // 链接 [text](url)（跳过图片语法 ![alt](url)）
+    result = result.replace(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g, function (m, text, url) {
       return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + text + '</a>';
     });
 
@@ -107,6 +106,20 @@ const MarkdownRenderer = (function () {
     var codeBuffer = [];
     var tableRows = [];
     var inTable = false;
+    var pendingImages = [];
+
+    function flushImages() {
+      if (pendingImages.length === 0) return;
+      if (listType) { listType = closeList(listType); }
+      if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
+      if (inTable) flushTable();
+      // 每张图片独占一个 <p>，让 render.js 的 processImages 统一合并为 gallery
+      for (var ii = 0; ii < pendingImages.length; ii++) {
+        var img = pendingImages[ii];
+        html += '<p><img src="' + escapeHtml(img.url) + '" alt="' + escapeHtml(img.alt) + '"></p>';
+      }
+      pendingImages = [];
+    }
 
     function flushTable() {
       if (tableRows.length === 0) return;
@@ -159,8 +172,21 @@ const MarkdownRenderer = (function () {
         if (listType) { listType = closeList(listType); }
         if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
         if (inTable) flushTable();
+        if (pendingImages.length) flushImages();
         i++;
         continue;
+      }
+
+      // 图片行（独占一行的 ![alt](url)，可能带列表标记 - 或 *）
+      var imgMatch = line.trim().match(/^(?:[-*+]\s+)?!\[([^\]]*)\]\(([^)]+)\)$/);
+      if (imgMatch) {
+        pendingImages.push({ alt: imgMatch[1], url: imgMatch[2] });
+        i++;
+        continue;
+      }
+      // 非图片行：如果之前积累了图片，先 flush
+      if (pendingImages.length) {
+        flushImages();
       }
 
       // 表格行（以 | 开头和结尾）
@@ -263,7 +289,8 @@ const MarkdownRenderer = (function () {
              !lines[i].trim().startsWith('```') &&
              !lines[i].startsWith('> ') &&
              !/^\s*[-*_\s]+$/.test(lines[i]) &&
-             !/^\|.*\|$/.test(lines[i].trim())) {
+             !/^\|.*\|$/.test(lines[i].trim()) &&
+             !/^(?:[-*+]\s+)?!\[([^\]]*)\]\(([^)]+)\)$/.test(lines[i].trim())) {
         paraLines.push(lines[i]);
         i++;
       }
@@ -274,6 +301,7 @@ const MarkdownRenderer = (function () {
     if (listType) closeList(listType);
     if (inBlockquote) html += '</blockquote>';
     if (inTable) flushTable();
+    if (pendingImages.length) flushImages();
     if (inCodeBlock) {
       html += '<pre><code' + (codeLang ? ' class="language-' + escapeHtml(codeLang) + '"' : '') + '>' + escapeHtml(codeBuffer.join('\n')) + '</code></pre>';
     }
