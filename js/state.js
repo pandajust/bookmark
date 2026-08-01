@@ -37,38 +37,8 @@ const AppState = (function () {
     if (currentTag) {
       list = list.filter(function (b) { return (b.tags || []).indexOf(currentTag) !== -1; });
     }
-    if (searchQuery) {
-      var q = searchQuery.toLowerCase();
-      // 检查是否有标签精确匹配搜索词
-      var hasExactTag = list.some(function (b) {
-        return (b.tags || []).some(function (t) { return t.toLowerCase() === q; });
-      });
-
-      list = list.filter(function (b) {
-        if (hasExactTag) {
-          // 精确匹配标签时，只返回含该标签的书签
-          return (b.tags || []).some(function (t) { return t.toLowerCase() === q; });
-        }
-        return (b.title || '').toLowerCase().indexOf(q) !== -1 ||
-               (b.url || '').toLowerCase().indexOf(q) !== -1 ||
-               (b.tags || []).some(function (t) { return t.toLowerCase().indexOf(q) !== -1; });
-      });
-
-      // 按相关性排序：标签匹配 > 标题匹配 > URL 匹配
-      list.sort(function (a, b) {
-        var aTag = (a.tags || []).some(function (t) { return t.toLowerCase().indexOf(q) !== -1; }) ? 0 : 1;
-        var bTag = (b.tags || []).some(function (t) { return t.toLowerCase().indexOf(q) !== -1; }) ? 0 : 1;
-        if (aTag !== bTag) return aTag - bTag;
-        var aTitle = (a.title || '').toLowerCase().indexOf(q) !== -1 ? 0 : 1;
-        var bTitle = (b.title || '').toLowerCase().indexOf(q) !== -1 ? 0 : 1;
-        if (aTitle !== bTitle) return aTitle - bTitle;
-        return b.createdAt - a.createdAt;
-      });
-    } else {
-      list.sort(function (a, b) { return b.createdAt - a.createdAt; });
-    }
-
-    return list;
+    // 搜索文本过滤已迁移至后端 API，此处只保留分类/标签本地筛选
+    return list.sort(function (a, b) { return b.createdAt - a.createdAt; });
   }
 
   // ---------- Getters ----------

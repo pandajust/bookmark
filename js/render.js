@@ -40,6 +40,14 @@ const Renderer = (function () {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
+  function tagLen(s) {
+    var n = 0;
+    for (var i = 0; i < s.length; i++) {
+      n += s.charCodeAt(i) > 127 ? 2 : 1;
+    }
+    return n;
+  }
+
   // ---------- 渲染：卡片网格 ----------
 
   function renderCards() {
@@ -329,6 +337,11 @@ const Renderer = (function () {
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
         var val = input.value.trim();
+        if (val && tagLen(val) > 20) {
+          showToast('标签过长（最多10个中文或20个英文）');
+          e.preventDefault();
+          return;
+        }
         if (val && currentTags.indexOf(val) === -1) {
           currentTags.push(val);
           renderTagBox();

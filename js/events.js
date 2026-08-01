@@ -228,6 +228,29 @@ const Events = (function () {
     }, 0);
   }
 
+  // ---------- 搜索（防抖 + 后端 API） ----------
+
+  var searchTimer = null;
+  function performSearch(query) {
+    if (!query) {
+      // 清空搜索：重新加载全部书签
+      AppState.setSearch('');
+      App.reload();
+      return;
+    }
+    AppState.setSearch(query);
+    // 调用后端搜索 API
+    StorageManager.search(query, {
+      category: AppState.getCurrentCat(),
+      tag: AppState.getCurrentTag()
+    }).then(function (results) {
+      AppState.setBookmarks(results);
+      Renderer.renderAll();
+    }).catch(function (e) {
+      Renderer.showToast('搜索失败');
+    });
+  }
+
   // ---------- 绑定所有事件 ----------
 
   function bindAll() {
@@ -294,14 +317,22 @@ const Events = (function () {
         el.classList.add('is-on');
         AppState.setCat(el.getAttribute('data-cat'));
         AppState.setTag(null);
-        Renderer.renderAll();
+        // 若当前有搜索查询，则带新分类重新搜索；否则本地渲染
+        if (AppState.getSearchQuery()) {
+          performSearch(AppState.getSearchQuery());
+        } else {
+          Renderer.renderAll();
+        }
       });
     });
 
-    // 侧边栏搜索
+    // 侧边栏搜索（250ms 防抖，走后端 API）
     $('#sideSearch').addEventListener('input', function (e) {
-      AppState.setSearch(e.target.value.trim());
-      Renderer.renderAll();
+      clearTimeout(searchTimer);
+      var val = e.target.value.trim();
+      searchTimer = setTimeout(function () {
+        performSearch(val);
+      }, 250);
     });
 
     // 视图切换（网格/列表）
@@ -322,7 +353,12 @@ const Events = (function () {
       var tag = el.getAttribute('data-tag');
       var currentTag = AppState.getCurrentTag();
       AppState.setTag(currentTag === tag ? null : tag);
-      Renderer.renderAll();
+      // 若当前有搜索查询，则带新标签重新搜索；否则本地渲染
+      if (AppState.getSearchQuery()) {
+        performSearch(AppState.getSearchQuery());
+      } else {
+        Renderer.renderAll();
+      }
     });
 
     // Sheet overlay 点击关闭
