@@ -25,12 +25,12 @@ from .extractor import (
     canonicalize_url,
     resolve_and_validate_host,
     fetch_html,
-    extract_content,
     SafeRedirectHandler,
     FETCH_USER_AGENT,
     FETCH_TIMEOUT,
     FETCH_MAX_BYTES,
 )
+from .extractors import extract_content
 
 # 本文件位于 backend/ 子包内，静态文件（index.html/js/css）在项目根目录
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,7 +49,7 @@ def fetch_and_update(bookmark_id, url):
     conn = db_conn()
     try:
         html, final_url = fetch_html(url)
-        title, description, markdown = extract_content(html, base_url=final_url)
+        title, description, markdown = extract_content(html, base_url=final_url, final_url=final_url)
 
         # 仅当原 title 是兜底值（等于 hostname 或为空）时才用抓取的标题覆盖
         row = conn.execute('SELECT title, hostname FROM bookmarks WHERE id = ?', (bookmark_id,)).fetchone()
@@ -244,7 +244,7 @@ class BookmarkHandler(BaseHTTPRequestHandler):
                     return self._send_json(400, {'error': 'Invalid URL'})
                 try:
                     html, final_url = fetch_html(canonical)
-                    title, description, markdown = extract_content(html, base_url=final_url)
+                    title, description, markdown = extract_content(html, base_url=final_url, final_url=final_url)
                     return self._send_json(200, {
                         'success': True,
                         'title': title,

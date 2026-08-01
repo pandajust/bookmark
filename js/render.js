@@ -48,6 +48,17 @@ const Renderer = (function () {
     return n;
   }
 
+  // 校验 URL 是否为可跳转的有效链接（http/https）
+  // 空值、纯 #、javascript:、void( 开头、非 http/https 协议均视为不可跳转
+  function isValidUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    var u = url.trim();
+    if (!u) return false;
+    if (u === '#' || u.startsWith('javascript:') || u.startsWith('void(')) return false;
+    if (!/^https?:\/\//i.test(u)) return false;
+    return true;
+  }
+
   // ---------- 渲染：卡片网格 ----------
 
   function renderCards() {
@@ -68,7 +79,28 @@ const Renderer = (function () {
         return '<span class="ltag">' + escapeHtml(t) + '</span>';
       }).join('');
 
-      var excerpt = b.description || (b.markdown || '').replace(/^#\s+.+\n*/, '').substring(0, 120);
+      var excerpt = b.description || '';
+      // 过滤无意义的 description（太短或纯符号，如 "-"、"*" 等）
+      if (excerpt.trim().length < 3 || /^[\s*_~\-=#>|<\[\](){}\.+]+$/.test(excerpt.trim())) {
+        excerpt = '';
+      }
+      if (!excerpt && b.markdown) {
+        // 卡片摘要也要清理噪声，避免显示 []()/JSON/装饰符号/Markdown 语法
+        excerpt = MarkdownRenderer.cleanMarkdown(b.markdown)
+          .replace(/!\[([^\]]*)\]\([^)]*\)/g, '')   // 移除标准图片语法
+          .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')  // 先将完整链接转纯文本
+          .replace(/!\[[^\]]*\]/g, '')               // 移除断裂图片语法开头 ![...]
+          .replace(/\]\([^)]*\)/g, '')               // 移除断裂链接尾部 ](url)
+          .replace(/\[([^\]]*)\]/g, '$1')            // 移除孤立的 [text]
+          .replace(/\[[^\]]*$/gm, '')                // 移除行尾未闭合的 [text
+          .replace(/^\s*[-*+]\s+/gm, '')             // 先移除列表标记
+          .replace(/^#{1,6}\s+/gm, '')               // 再移除行首标题标记
+          .replace(/[*_~`]+/g, '')                   // 移除所有加粗/斜体/代码标记
+          .replace(/^\s*>\s+/gm, '')                 // 移除引用标记
+          .replace(/\n+/g, ' ')
+          .trim()
+          .substring(0, 120);
+      }
 
       var failed = (b.status === 'failed');
       var statusClass = failed ? ' status-failed' : '';
@@ -178,14 +210,50 @@ const Renderer = (function () {
       '<div class="read-tags">' + tags + '</div>' +
       '<div class="read-acts">' +
         '<button class="read-btn primary" id="btnEditRead"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>编辑</button>' +
+        (b.status === 'failed' ? '<button class="read-btn ghost" id="btnRetryRead"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>重新提取</button>' : '') +
         '<button class="read-btn ghost" id="btnExportRead"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>导出 Markdown</button>' +
         '<button class="read-btn ghost" style="color:var(--danger)" id="btnDeleteRead"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>删除</button>' +
       '</div>';
 
-    // Markdown 渲染
+    // Markdown 渲染（超长正文折叠，避免一次性渲染巨大 DOM）
     var md = b.markdown || '';
-    $('#panelRender').innerHTML = MarkdownRenderer.render(md || ('# ' + (b.title || '') + '\n\n暂无正文内容'));
-    $('#panelSource').innerHTML = '<div class="read-src">' + escapeHtml(md) + '</div>';
+    var RENDER_LIMIT = 6000; // 字符阈值
+    var panelRender = $('#panelRender');
+    if (md && md.length > RENDER_LIMIT) {
+      // 按段落边界截断，保留前 RENDER_LIMIT 字符
+      var head = md.substring(0, RENDER_LIMIT);
+      var cutAt = head.lastIndexOf('\n\n');
+      if (cutAt < RENDER_LIMIT * 0.5) cutAt = head.lastIndexOf('\n');
+      if (cutAt < RENDER_LIMIT * 0.5) cutAt = RENDER_LIMIT;
+      var headMd = head.substring(0, cutAt);
+      panelRender.innerHTML = MarkdownRenderer.render(headMd) +
+        '<div class="read-more-wrap" id="readMoreWrap"><button class="read-more-btn" id="btnReadMore">展开全部（共 ' + md.length + ' 字）</button></div>';
+      // 源码视图也折叠
+      $('#panelSource').innerHTML = '<div class="read-src">' + escapeHtml(headMd) + '\n\n<!-- 已折叠，点击预览区"展开全部"查看完整内容 -->\n</div>';
+      var fullMd = md;
+      $('#btnReadMore').addEventListener('click', function () {
+        var btn = this;
+        btn.textContent = '正在加载完整内容...';
+        btn.disabled = true;
+        // 用 setTimeout 让浏览器先更新按钮 UI，再执行耗时渲染
+        setTimeout(function () {
+          try {
+            var rendered = MarkdownRenderer.render(fullMd);
+            panelRender.innerHTML = rendered;
+            $('#panelSource').innerHTML = '<div class="read-src">' + escapeHtml(fullMd) + '</div>';
+            processImages();
+          } catch (err) {
+            panelRender.innerHTML = '<p style="color:var(--danger)">内容渲染出错：' + escapeHtml(String(err).substring(0, 200)) + '</p><pre style="white-space:pre-wrap;font-size:13px">' + escapeHtml(fullMd.substring(0, 2000)) + '...</pre>';
+          }
+          var wrap = $('#readMoreWrap');
+          if (wrap) wrap.remove();
+          $('#readView').scrollTop = 0;
+        }, 50);
+      });
+    } else {
+      panelRender.innerHTML = MarkdownRenderer.render(md || ('# ' + (b.title || '') + '\n\n暂无正文内容'));
+      $('#panelSource').innerHTML = '<div class="read-src">' + escapeHtml(md) + '</div>';
+    }
 
     // 图片后处理：多图合并为横向 gallery + 所有图点击放大
     processImages();
@@ -201,6 +269,12 @@ const Renderer = (function () {
     });
 
     $('#readCrumb').innerHTML = (CATEGORIES[b.category] || b.category) + ' / <b>' + escapeHtml(b.title) + '</b>';
+
+    // 非可跳转链接（空、javascript:、非 http/https 等）隐藏“原网页打开”按钮
+    var btnOpenOrig = $('#btnOpenOrig');
+    if (btnOpenOrig) {
+      btnOpenOrig.style.display = isValidUrl(b.url) ? '' : 'none';
+    }
 
     // 切换视图
     $('#dashboard').style.display = 'none';
@@ -526,19 +600,22 @@ const Renderer = (function () {
     remaining.forEach(function (img) {
       if (img.closest('.img-gallery-item')) return;
       if (img.closest('.img-single')) return; // 已包裹
-      // 图片加载失败时隐藏
-      img.addEventListener('error', function () {
-        img.style.display = 'none';
-      });
-      // 处理已经加载完成但失败的图片（error 事件已触发，不会再触发）
-      if (img.complete && img.naturalWidth === 0) {
-        img.style.display = 'none';
-      }
       var wrap = document.createElement('span');
       wrap.className = 'img-single';
       img.parentNode.insertBefore(wrap, img);
       wrap.appendChild(img);
+      // 图片加载失败时显示占位符（与 gallery 行为一致）
+      img.addEventListener('error', function () {
+        img.style.display = 'none';
+        wrap.classList.add('img-failed');
+      });
+      // 处理已经加载完成但失败的图片（error 事件已触发，不会再触发）
+      if (img.complete && img.naturalWidth === 0) {
+        img.style.display = 'none';
+        wrap.classList.add('img-failed');
+      }
       wrap.addEventListener('click', function () {
+        if (wrap.classList.contains('img-failed')) return; // 失败图不打开 lightbox
         openLightbox([img], 0);
       });
     });
@@ -599,10 +676,13 @@ const Renderer = (function () {
   var toastTimer;
   function showToast(msg) {
     var toast = $('#toast');
+    if (!toast) { console.warn('Toast element not found'); return; }
     toast.textContent = msg;
     toast.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 2000);
+    toastTimer = setTimeout(function () {
+      toast.classList.remove('show');
+    }, 5000);
   }
 
   return {

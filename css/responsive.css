@@ -73,8 +73,8 @@
   .read-side {
     width: auto;
     flex: none;
-    border-right: none;
-    border-bottom: 1px solid var(--glass-border);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-card);
     padding: var(--space-12);
     gap: var(--space-8);
     flex-direction: row;
@@ -82,6 +82,8 @@
     align-items: center;
     max-height: 35vh;
     overflow-y: auto;
+    margin-right: 0;
+    margin-bottom: var(--space-12);
   }
   .read-side .fav { width: 36px; height: 36px; font-size: 16px; }
   .read-side h4 { font-size: var(--text-base); flex: 1; min-width: 0; }

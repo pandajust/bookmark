@@ -274,10 +274,10 @@ const Events = (function () {
       Renderer.closeReadingView();
     });
 
-    // 原网页打开
+    // 原网页打开（仅当 URL 为可跳转的有效链接时才放行）
     $('#btnOpenOrig').addEventListener('click', function () {
       var b = AppState.getBookmarkById(AppState.getReadingId());
-      if (b && b.url) window.open(b.url, '_blank');
+      if (b && ContentExtractor.isValidUrl(b.url)) window.open(b.url, '_blank');
     });
 
     // 阅读视图标签切换
@@ -301,6 +301,11 @@ const Events = (function () {
       var id = card.getAttribute('data-id');
       var b = AppState.getBookmarkById(id);
       if (!b) return;
+      // 非可跳转链接（空、javascript:、非 http/https 等）不打开展示页
+      if (!ContentExtractor.isValidUrl(b.url)) {
+        Renderer.showToast('该网址不可访问，无法展示正文');
+        return;
+      }
       AppState.setReadingId(b.id);
       Renderer.renderReadingView(b.id);
       bindReadingButtons(b);
