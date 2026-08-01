@@ -1,0 +1,98 @@
+/* ===== base.css =====
+   Reset 与基础布局
+   - *,*::before,*::after reset
+   - html / body 基础样式
+   - .app-shell 容器
+   - .app-bg 渐变背景
+   - .orb 浮动球体及 .orb-a 到 .orb-d
+   - @media (prefers-color-scheme: dark) 下的 body 和 app-bg 覆盖
+   - 动画 @media (prefers-reduced-motion: no-preference) 下的 orb 动画
+===== */
+
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  height: 100vh; height: 100dvh; display: flex; justify-content: center; align-items: center;
+  /* body 背景与 app-bg 同色渐变，避免大屏时出现黑边 */
+  background: linear-gradient(135deg, #A8D8FF 0%, #C7B8FF 35%, #FFB8E0 70%, #FFD8A8 100%);
+  font: var(--w-regular) var(--text-base) var(--font-sans);
+  color: var(--text); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility; overflow: hidden;
+}
+@supports not (height: 100dvh) {
+  body { height: 100vh; }
+}
+@media (prefers-color-scheme: dark) {
+  body { background: linear-gradient(135deg, #141840 0%, #281A44 35%, #3D1A38 70%, #342818 100%); }
+}
+
+/* 黑白主题：纯净背景，移除彩色渐变 */
+:root[data-theme="white"] body,
+:root[data-theme="white"] .app-bg {
+  background: #F2F2F7;
+}
+:root[data-theme="black"] body,
+:root[data-theme="black"] .app-bg {
+  background: #000000;
+}
+/* 屏幕足够大时留 24px 边距；小于该尺寸则铺满，不产生滚动条 */
+@media (min-width: 1148px) and (min-height: 948px) {
+  body { padding: 24px; }
+}
+
+/* ===== Liquid Glass Background ===== */
+.app-shell {
+  position: relative;
+  width: min(1100px, 100vw);
+  height: min(900px, 100vh);
+  height: min(900px, 100dvh);
+  border-radius: 18px; overflow: hidden; border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg);
+}
+/* 小于边距条件时去掉圆角并占满 */
+@media (max-width: 1147px), (max-height: 947px) {
+  .app-shell { border-radius: 0; border-left: none; border-right: none; border-top: none; border-bottom: none; }
+}
+@media (max-width: 1147px) {
+  .app-shell { width: 100vw; }
+}
+@media (max-height: 947px) {
+  .app-shell { height: 100vh; height: 100dvh; }
+}
+.app-bg {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, #A8D8FF 0%, #C7B8FF 35%, #FFB8E0 70%, #FFD8A8 100%);
+}
+@media (prefers-color-scheme: dark) {
+  .app-bg { background: linear-gradient(135deg, #141840 0%, #281A44 35%, #3D1A38 70%, #342818 100%); }
+}
+
+/* Floating orbs */
+.orb { position: absolute; border-radius: 50%; filter: blur(50px); pointer-events: none; }
+.orb-a { width: 280px; height: 280px; left: -40px; top: -30px; background: rgba(0,122,255,0.5); }
+.orb-b { width: 240px; height: 240px; right: 10%; top: -40px; background: rgba(88,86,214,0.45); }
+.orb-c { width: 300px; height: 300px; right: -50px; bottom: -60px; background: rgba(255,149,0,0.4); }
+.orb-d { width: 220px; height: 220px; left: 35%; bottom: -50px; background: rgba(52,199,89,0.4); }
+
+/* 黑白主题：隐藏彩色浮动球 */
+:root[data-theme="white"] .orb,
+:root[data-theme="black"] .orb {
+  display: none;
+}
+
+/* ===== 主题切换丝滑过渡 ===== */
+body, .app-shell, .app-bg, .sidebar, .sitem, .stag, .main, .main-header, .cards, .lcard, .ltag, .ltm, .titlebar, .tb-title, .read-view, .read-side, .read-panel, .read-panel-body, .read-top, .read-btn, .read-tag, .read-kv, .sheet-overlay, .sheet, .confirm-overlay, .confirm, .img-gallery, .img-gallery-item, .read-src, .statusbar, .side-search, .seg button, .btn-pill, .empty, .empty h4, .empty p, .lcard-warn-tooltip, .read-crumb, .read-back, .read-inner, .traffic .t-btn, .tb-btn {
+  transition: background-color 0.45s ease, color 0.45s ease, border-color 0.45s ease, box-shadow 0.45s ease;
+}
+
+/* ===== Animations (orb) ===== */
+@media (prefers-reduced-motion: no-preference) {
+  .orb-a { animation: orb1 16s ease-in-out infinite; }
+  .orb-b { animation: orb2 18s ease-in-out infinite; }
+  .orb-c { animation: orb3 20s ease-in-out infinite; }
+  .orb-d { animation: orb2 22s ease-in-out infinite; }
+  @keyframes orb1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(24px,-18px) scale(1.05)} }
+  @keyframes orb2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-20px,22px) scale(1.08)} }
+  @keyframes orb3 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(18px,-24px) scale(1.05)} }
+}
