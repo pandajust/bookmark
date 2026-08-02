@@ -2,14 +2,35 @@
 """数据库操作：连接、初始化、书签与标签 CRUD。"""
 
 import os
+import sys
 import time
 import sqlite3
 import urllib.parse
 
+
+def _get_app_dirs():
+    """返回 (project_root, data_dir)。
+
+    - 开发模式（直接 python server.py）：项目根 = backend 上级目录，data = 项目根/data
+    - PyInstaller 打包模式：data_dir 放 %APPDATA%\\BookmarkHub，避免写入 Program Files 权限问题
+    """
+    is_frozen = getattr(sys, 'frozen', False)
+    # 项目根目录（放静态资源 index.html / css / js）
+    if is_frozen:
+        # PyInstaller: sys._MEIPASS 是临时解压目录（onefile 模式）
+        project_root = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+        # 用户数据目录
+        appdata = os.environ.get('APPDATA') or os.path.expanduser('~')
+        data_dir = os.path.join(appdata, 'BookmarkHub')
+    else:
+        # 本文件位于 backend/ 子包内，项目根目录为上一级
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data_dir = os.path.join(project_root, 'data')
+    return project_root, data_dir
+
+
 # ===== 路径配置 =====
-# 本文件位于 backend/ 子包内，项目根目录为上一级
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(ROOT_DIR, 'data')
+PROJECT_ROOT, DATA_DIR = _get_app_dirs()
 DB_PATH = os.path.join(DATA_DIR, 'bookmarks.db')
 
 # ===== 标签长度限制 =====

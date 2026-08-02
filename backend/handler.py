@@ -32,9 +32,9 @@ from .extractor import (
 )
 from .extractors import extract_content
 
-# 本文件位于 backend/ 子包内，静态文件（index.html/js/css）在项目根目录
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATIC_DIR = ROOT_DIR
+# 静态文件目录：复用 db.py 的 PROJECT_ROOT（处理 PyInstaller 打包路径）
+from .db import PROJECT_ROOT
+STATIC_DIR = PROJECT_ROOT
 
 
 # ===== 后台抓取任务 =====
