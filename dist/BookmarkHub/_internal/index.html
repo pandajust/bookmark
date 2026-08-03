@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>书签集 · Bookmark Hub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔖</text></svg>">
+
+<!-- ===== Design System CSS ===== -->
+<link rel="stylesheet" href="css/tokens.css?v=3">
+<link rel="stylesheet" href="css/base.css?v=3">
+<link rel="stylesheet" href="css/layout.css?v=4">
+<link rel="stylesheet" href="css/cards.css?v=3">
+<link rel="stylesheet" href="css/sheet.css?v=3">
+<link rel="stylesheet" href="css/reading.css?v=19">
+<link rel="stylesheet" href="css/dialogs.css?v=4">
+<link rel="stylesheet" href="css/responsive.css?v=11">
+</head>
+<body>
+
+<div class="app-shell" id="app">
+  <!-- Liquid Glass Background -->
+  <div class="app-bg"></div>
+  <span class="orb orb-a"></span>
+  <span class="orb orb-b"></span>
+  <span class="orb orb-c"></span>
+  <span class="orb orb-d"></span>
+
+  <div class="app-content">
+    <!-- Title Bar -->
+    <div class="titlebar">
+      <span class="traffic">
+        <button class="t-btn t-white" data-theme="white" title="纯净白主题" aria-label="切换纯净白主题"></button>
+        <button class="t-btn t-blue" data-theme="blue" title="蓝色主题" aria-label="切换蓝色主题"></button>
+        <button class="t-btn t-black" data-theme="black" title="纯净黑主题" aria-label="切换纯净黑主题"></button>
+      </span>
+      <span class="tb-title" id="tbTitle">书签集</span>
+    </div>
+
+    <!-- Body -->
+    <div class="app-body" id="appBody">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="side-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+          <input placeholder="搜索" id="sideSearch">
+        </div>
+        <div class="sgroup">收藏夹</div>
+        <div class="sitem is-on" data-cat="all"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="7" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect><rect x="14" y="14" width="7" height="7" rx="2"></rect></svg></span><span class="lbl">全部</span><span class="ct" id="countAll">0</span></div>
+        <div class="sitem" data-cat="tech"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4"></path></svg></span><span class="lbl">技术</span><span class="ct" id="countTech">0</span></div>
+        <div class="sitem" data-cat="design"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg></span><span class="lbl">设计</span><span class="ct" id="countDesign">0</span></div>
+        <div class="sitem" data-cat="read"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"></path></svg></span><span class="lbl">阅读</span><span class="ct" id="countRead">0</span></div>
+        <div class="sitem" data-cat="tool"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"></path></svg></span><span class="lbl">工具</span><span class="ct" id="countTool">0</span></div>
+        <div class="sgroup">标签</div>
+        <div id="tagList"></div>
+      </aside>
+
+      <!-- Main Dashboard -->
+      <main class="main" id="dashboard">
+        <div class="main-header">
+          <h2 id="mainTitle">全部</h2>
+          <span class="meta" id="mainMeta">0 条</span>
+          <div class="seg">
+            <button class="on" data-view="grid"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="7" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect><rect x="14" y="14" width="7" height="7" rx="2"></rect></svg></button>
+            <button data-view="list"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path></svg></button>
+          </div>
+          <button class="btn-pill" id="btnAdd2"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>收藏网址</button>
+        </div>
+        <div class="cards" id="cardGrid">
+          <div class="empty">
+            <span class="ic">📑</span>
+            <h4>暂无收藏</h4>
+            <p>点击右上角「收藏网址」开始吧</p>
+          </div>
+        </div>
+      </main>
+
+      <!-- Reading View -->
+      <div class="read-view" id="readView">
+        <aside class="read-side" id="readSide"></aside>
+        <section class="read-panel">
+          <div class="read-top">
+            <button class="read-back" id="btnBack">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+            </button>
+            <span class="read-crumb" id="readCrumb"></span>
+            <span class="read-spacer"></span>
+            <div class="seg" role="tablist">
+              <button class="on" data-tab="render" role="tab" aria-selected="true">预览</button>
+              <button data-tab="source" role="tab" aria-selected="false">源码</button>
+            </div>
+            <button class="read-back" id="btnOpenOrig" title="访问原网页">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><path d="M15 3h6v6M10 14 21 3"></path></svg>
+            </button>
+          </div>
+          <div class="read-inner">
+            <div class="read-panel-body read-render show" id="panelRender"></div>
+            <div class="read-panel-body" id="panelSource"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+      <span class="dot"></span>
+      <span id="statusText">数据已本地保存 · 0 条收藏</span>
+    </div>
+
+    <!-- Add/Edit Sheet -->
+    <div class="sheet-overlay" id="sheetOverlay">
+      <div class="sheet">
+        <div class="sheet-head">
+          <h3 id="sheetTitle">收藏新网址</h3>
+          <button class="sheet-close" id="btnSheetClose">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div class="sheet-body">
+          <div class="fld">
+            <label>网址</label>
+            <input class="inp mono" id="inpUrl" placeholder="https://...">
+          </div>
+          <div class="fld">
+            <label>标题</label>
+            <div class="titlebox" id="titleBox" style="display:none">
+              <span class="ck"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>
+              <span class="tt" id="fetchedTitle"></span>
+              <span class="auto">已自动识别</span>
+            </div>
+            <input class="inp" id="inpTitle" placeholder="输入标题">
+          </div>
+          <div class="row">
+            <div class="fld">
+              <label>分类</label>
+              <select class="inp" id="inpCat" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;padding:0;margin:0;border:0;overflow:hidden" tabindex="-1">
+                <option value="tech">技术</option>
+                <option value="design">设计</option>
+                <option value="read">阅读</option>
+                <option value="tool">工具</option>
+              </select>
+              <!-- Custom iOS-style dropdown -->
+              <div class="catselect" id="catSelect" role="combobox" aria-haspopup="listbox" aria-expanded="false" tabindex="0">
+                <div class="catselect-head">
+                  <span class="catselect-label" id="catSelectLabel">技术</span>
+                  <span class="catselect-icon" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </span>
+                </div>
+                <div class="catselect-menu" id="catSelectMenu" role="listbox">
+                  <div class="catselect-opt is-active" role="option" data-val="tech" aria-selected="true">
+                    <span class="cs-dot" style="background:#007AFF"></span>
+                    <span class="cs-lbl">技术</span>
+                    <svg class="cs-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                  <div class="catselect-opt" role="option" data-val="design" aria-selected="false">
+                    <span class="cs-dot" style="background:#5856D6"></span>
+                    <span class="cs-lbl">设计</span>
+                    <svg class="cs-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                  <div class="catselect-opt" role="option" data-val="read" aria-selected="false">
+                    <span class="cs-dot" style="background:#FF9500"></span>
+                    <span class="cs-lbl">阅读</span>
+                    <svg class="cs-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                  <div class="catselect-opt" role="option" data-val="tool" aria-selected="false">
+                    <span class="cs-dot" style="background:#34C759"></span>
+                    <span class="cs-lbl">工具</span>
+                    <svg class="cs-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="fld">
+              <label>标签</label>
+              <div class="tagbox" id="tagBox">
+                <span class="chip add">+ 添加</span>
+              </div>
+            </div>
+          </div>
+          <div class="extract-box" id="extractBox" style="display:none">
+            <div class="ex-head">
+              <span class="sp" id="extractIcon">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>
+              </span>
+              <span class="tt" id="extractLabel">正文提取中...</span>
+              <span class="ok" id="extractStatus"></span>
+            </div>
+            <div class="ex-md" id="extractPreview"></div>
+          </div>
+        </div>
+        <div class="sheet-foot">
+          <span class="hint">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 1 0 0-9 7 7 0 0 0-13.6 2A4 4 0 0 0 4 19z"></path></svg>
+            正文保存为 Markdown，本地持久化
+          </span>
+          <button class="btn ghost" id="btnSheetCancel">取消</button>
+          <button class="btn primary" id="btnSheetSave">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+            收藏
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div class="confirm-overlay" id="confirmOverlay">
+      <div class="confirm-box">
+        <span class="ic">🗑</span>
+        <h4>删除这条收藏？</h4>
+        <p id="confirmMsg">此项及其 Markdown 正文将被永久移除，此操作不可撤销。</p>
+        <div class="confirm-btns">
+          <button class="btn ghost" id="btnConfirmCancel">取消</button>
+          <button class="btn danger" id="btnConfirmOk">确认删除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Image Lightbox (图片放大查看) -->
+    <div class="img-lightbox" id="imgLightbox" role="dialog" aria-label="图片预览">
+      <button class="img-lb-close" id="imgLbClose" aria-label="关闭">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+      <button class="img-lb-prev" id="imgLbPrev" aria-label="上一张">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+      </button>
+      <button class="img-lb-next" id="imgLbNext" aria-label="下一张">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+      </button>
+      <div class="img-lb-wrap">
+        <img class="img-lb-img" id="imgLbImg" alt="">
+        <div class="img-lb-caption" id="imgLbCaption"></div>
+        <div class="img-lb-counter" id="imgLbCounter"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Application Scripts ===== -->
+<script src="js/storage.js?v=3"></script>
+<script src="js/extractor.js?v=3"></script>
+<script src="js/markdown.js?v=15"></script>
+<script src="js/state.js?v=3"></script>
+<script src="js/render.js?v=13"></script>
+<script src="js/events.js?v=5"></script>
+<script src="js/app.js?v=3"></script>
+</body>
+</html>

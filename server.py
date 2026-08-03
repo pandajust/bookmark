@@ -18,6 +18,7 @@ Bookmark Hub - 桌面应用主入口
 """
 
 import os
+import re
 import sys
 import time
 import threading
@@ -77,12 +78,130 @@ def _start_server(port):
     return server
 
 
+def _sanitize_filename(name):
+    name = re.sub(r'[\\/:*?"<>|\r\n\t]+', '_', name or 'bookmark').strip()
+    name = name.rstrip('. ')
+    return name[:80] or 'bookmark'
+
+
+class JsApi:
+    """前端可通过 window.pywebview.api.xxx 调用的方法集。"""
+
+    def save_markdown_dialog(self, suggested_name, markdown_content):
+        """弹出系统保存文件对话框（优先 tkinter，失败再用 pywebview）。
+        返回 { ok, path, dir, filename, error }，取消则返回 { ok:false, canceled:true }
+        """
+        fname = _sanitize_filename(suggested_name) + '.md'
+        fpath = None
+        err = None
+
+        # 方案 1：tkinter.filedialog（Python 标准库，打包后稳定可用）
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            try:
+                root.withdraw()
+                root.attributes('-topmost', True)
+                try:
+                    root.after(0, lambda: root.attributes('-topmost', False))
+                except Exception:
+                    pass
+                fpath = filedialog.asksaveasfilename(
+                    title='导出 Markdown',
+                    defaultextension='.md',
+                    initialfile=fname,
+                    initialdir=self._get_default_dir(),
+                    filetypes=[('Markdown 文件', '*.md'), ('所有文件', '*.*')],
+                )
+            finally:
+                try:
+                    root.destroy()
+                except Exception:
+                    pass
+        except Exception as e:
+            err = 'tk: ' + str(e)
+            fpath = None
+
+        # 方案 2：pywebview 原生（兜底）
+        if not fpath:
+            try:
+                import webview
+                global window
+                if window is not None:
+                    result = window.create_file_dialog(
+                        dialog_type=webview.SAVE_DIALOG,
+                        directory=self._get_default_dir(),
+                        file_name=fname,
+                        save_filename=fname,
+                        file_types=('Markdown 文件 (*.md)|*.md|所有文件 (*.*)|*.*',),
+                    )
+                    if result:
+                        fpath = result if isinstance(result, str) else result[0]
+            except Exception as e2:
+                if not err:
+                    err = 'pywebview: ' + str(e2)
+                else:
+                    err += '; pywebview: ' + str(e2)
+
+        # 用户取消
+        if not fpath:
+            return {'ok': False, 'canceled': True}
+
+        # 保证 .md 后缀
+        try:
+            if not fpath.lower().endswith('.md') and '.' not in os.path.basename(fpath):
+                fpath += '.md'
+            os.makedirs(os.path.dirname(fpath) or '.', exist_ok=True)
+            with open(fpath, 'w', encoding='utf-8') as f:
+                f.write(markdown_content or '')
+            return {
+                'ok': True,
+                'path': fpath,
+                'dir': os.path.dirname(fpath),
+                'filename': os.path.basename(fpath),
+            }
+        except Exception as e:
+            return {'ok': False, 'error': '写入失败：' + str(e)}
+
+    @staticmethod
+    def _get_default_dir():
+        """默认打开目录：桌面 → 下载 → 用户目录 → 当前目录。"""
+        home = os.path.expanduser('~')
+        for d in [
+            os.path.join(home, 'Desktop'),
+            os.path.join(home, '桌面'),
+            os.path.join(home, 'Downloads'),
+            os.path.join(home, '下载'),
+        ]:
+            if os.path.isdir(d):
+                return d
+        return home or os.getcwd()
+
+    def open_folder_in_explorer(self, folder_path):
+        """在资源管理器中打开指定文件夹。返回结果并包含路径用于 Toast 提示。"""
+        try:
+            if not folder_path or not os.path.isdir(folder_path):
+                return {'ok': False, 'error': '路径不存在：' + str(folder_path)}
+            if os.name == 'nt':
+                os.startfile(folder_path)  # noqa: attr-defined
+            elif sys.platform == 'darwin':
+                os.system('open "{}"'.format(folder_path))
+            else:
+                os.system('xdg-open "{}"'.format(folder_path))
+            return {'ok': True, 'dir': folder_path}
+        except Exception as e:
+            return {'ok': False, 'error': str(e)}
+
+
 def _run_desktop(port):
     """桌面应用模式：pywebview 原生窗口。关闭窗口即退出。"""
     import webview
+    global window
 
     front_url = 'http://{}:{}/'.format(HOST, port)
     server = _start_server(port)
+    api = JsApi()
 
     # 创建原生桌面窗口，加载本地服务页面
     window = webview.create_window(
@@ -92,6 +211,7 @@ def _run_desktop(port):
         height=840,
         min_size=(960, 600),
         text_select=False,
+        js_api=api,
     )
 
     def _on_closed():
